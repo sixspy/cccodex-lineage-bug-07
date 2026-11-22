@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from app.db import SCHEMA, get_db, init_schema
 
-SCHEMA_VERSION = "lineage-v1"
+SCHEMA_VERSION = "lineage-v2"
 
 
 def _schema_compatible(conn) -> bool:
@@ -92,11 +92,6 @@ def seed_if_needed(db_path: str | None = None) -> dict:
             (SCHEMA_VERSION,),
         )
         conn.execute("INSERT INTO meta(key, value) VALUES ('lab','表血缘影响台')")
-        try:
-            from app.services.draft_publish import seed_skew
-            seed_skew(db_path)
-        except Exception:
-            pass
         return {
             "seeded": True,
             "nodes": len(nodes),

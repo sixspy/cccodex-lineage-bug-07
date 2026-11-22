@@ -1,17 +1,18 @@
-"""草稿当已发布审计旁路：只记展示事件。"""
+"""草稿确认审计：以独立账册行作为审计事件，展示无账册则无事件。"""
 from __future__ import annotations
 
-from app.db import get_db
-from app.services.draft_publish_mirror import half_mirror, mirror_board
+from app.services.draft_publish import ledger_rows
+from app.services.draft_publish_mirror import mirror_board
 
 
 def audit_list(db_path: str | None = None) -> list[dict]:
-    with get_db(db_path) as conn:
-        rows = conn.execute(
-            "SELECT key, value FROM meta WHERE key LIKE ? ORDER BY key",
-            ("draft_publish_evt_%",),
-        ).fetchall()
-        return [{"key": r["key"], "value": r["value"]} for r in rows]
+    return [
+        {
+            "key": "edge_confirm_ledger:%d" % r["id"],
+            "value": "%s｜%s｜%s" % (r["edge_code"], r["fate"], r["confirmed_at"]),
+        }
+        for r in ledger_rows(db_path)
+    ]
 
 
 def audit_summary(db_path: str | None = None) -> dict:
@@ -20,5 +21,5 @@ def audit_summary(db_path: str | None = None) -> dict:
         "title": "草稿当已发布审计",
         "events": audit_list(db_path),
         "board": board,
-        "half": half_mirror(db_path),
+        "half": board["mirror_chip"],
     }

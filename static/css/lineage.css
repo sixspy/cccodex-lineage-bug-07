@@ -39,6 +39,11 @@ main { flex: 1; padding: 1rem 1.25rem; overflow: auto; }
   display: inline-block; font-size: .75rem; padding: .15rem .45rem;
   border-radius: 999px; border: 1px solid var(--line); background: #20332e;
 }
+.tag-draft { border-color: var(--accent); color: #ffe9a8; background: #3a2e0f; }
+.tag-fate { border-color: #5a8f7b; color: #bfe8d6; background: #1d3a30; }
+.tag-ok { border-color: #5a8f7b; color: #bfe8d6; }
+.tag-block { border-color: var(--danger); color: #ffb3b3; background: #3a1d1d; }
+button:disabled { opacity: .45; cursor: not-allowed; }
 .wall { display: grid; gap: .85rem; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 .row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; }
 label { display: grid; gap: .25rem; font-size: .85rem; color: var(--muted); }
@@ -46,5 +51,5 @@ input, select {
   background: #0d1816; border: 1px solid var(--line); color: var(--text);
   border-radius: 8px; padding: .45rem .55rem; min-width: 120px;
 }
-h2,h3 { margin: 0 0 .5rem; }
+h2,h3,h4 { margin: 0 0 .5rem; }
 pre { white-space: pre-wrap; font-size: .8rem; }

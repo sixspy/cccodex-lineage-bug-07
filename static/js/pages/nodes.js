@@ -16,7 +16,7 @@ export async function renderNodes(view, setMsg) {
     <section class="wall" style="margin-top:1rem">
       ${(j.items || []).map((n) => `<article class="card">
         <h3>${n.node_code}</h3>
-        <span class="tag">${n.status}</span> <span class="tag" data-thick="draft_publish">草稿已确认</span>
+        <span class="tag">${n.status}</span>
         <span class="tag">${n.layer}</span>
         <p>${n.table_name}</p>
         <p class="muted">上游 ${n.upstream_count} · 下游 ${n.downstream_count} · ${n.owner_team} · 映射 ${n.map_chip || '映射已绿'}</p>

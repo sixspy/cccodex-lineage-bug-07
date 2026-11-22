@@ -32,34 +32,57 @@ export async function renderSettings(view, setMsg) {
 
   try {
     const dash = await api('/api/draft_publish/dash');
+    const gate = dash.gate || { allowed: false, violations: [] };
     view.innerHTML += `<section class="card" style="margin-top:1rem">
       <h3>草稿确认</h3>
-      <span class="tag">${dash.chip}</span>
-      <p class="muted">真相 ${dash.truth} · 包行 ${dash.pack_count} · 对齐差 ${dash.panel_pack_mismatch}</p>
       <div class="row">
-        <button id="go_draft_publish" class="primary" type="button">落台</button>
-        <button id="half_draft_publish" type="button">半修对齐</button>
-        <button id="note_draft_publish" type="button">记旁路</button>
+        <span class="tag">台面芯片：${dash.chip}</span>
+        <span class="tag">库内真相：${dash.truth}</span>
+        <span class="tag tag-draft" data-thick="unpublished">未发布边：${dash.unpublished_count}</span>
+        <span class="tag ${gate.allowed ? 'tag-ok' : 'tag-block'}">解析闸：${gate.allowed ? '放行' : '拦截'}</span>
+      </div>
+      <p class="muted">命运行 ${dash.durable_count} · 对齐差 ${dash.panel_pack_mismatch}</p>
+      ${gate.violations && gate.violations.length ? `<p class="err" data-thick="gate-violation">${gate.violations.join('；')}</p>` : ''}
+      ${gate.warnings && gate.warnings.length ? `<p class="muted">${gate.warnings.join('；')}</p>` : ''}
+      <div class="wall" style="margin-top:.75rem">
+        ${(dash.edges || []).map((e) => `<article class="card">
+          <h4>${e.edge_code}</h4>
+          <div class="row">
+            <span class="tag">${e.status}</span>
+            ${e.draft_source ? '<span class="tag tag-draft" data-thick="draft_source">草稿来源</span>' : ''}
+            ${e.confirmed ? `<span class="tag tag-fate" data-thick="fate">命运：${e.fate}</span>` : '<span class="tag">未确认</span>'}
+          </div>
+          ${e.draft_source && !e.confirmed ? `
+          <div class="row" style="margin-top:.5rem">
+            <button data-seal="${e.edge_id}" type="button">确认封草稿</button>
+            <button data-allow="${e.edge_id}" class="primary" type="button">确认准发布</button>
+          </div>` : ''}
+        </article>`).join('')}
+      </div>
+      <div class="row" style="margin-top:.75rem">
+        <button id="half_draft_publish" type="button">半修对齐（只碰展示）</button>
       </div>
     </section>`;
-    document.getElementById('go_draft_publish').onclick = async () => {
+    const confirm = async (edgeId, fate) => {
       try {
-        const r = await api('/api/draft_publish/commit', { method:'POST', body: JSON.stringify({ref:1}) });
-        setMsg(r.message || '草稿当已发布');
+        const r = await api('/api/draft_publish/commit', {
+          method: 'POST',
+          body: JSON.stringify({ edge_id: Number(edgeId), fate }),
+        });
+        setMsg(r.message || '确认整笔完成');
         await renderSettings(view, setMsg);
       } catch (e) { setMsg(e.message, true); }
     };
+    view.querySelectorAll('[data-seal]').forEach((btn) => {
+      btn.onclick = () => confirm(btn.dataset.seal, '封草稿');
+    });
+    view.querySelectorAll('[data-allow]').forEach((btn) => {
+      btn.onclick = () => confirm(btn.dataset.allow, '准发布');
+    });
     document.getElementById('half_draft_publish').onclick = async () => {
       try {
-        const r = await api('/api/draft_publish/half', { method:'POST', body:'{}' });
-        setMsg('半修 ' + r.panel_chip + ' / 包行 ' + r.pack_count);
-        await renderSettings(view, setMsg);
-      } catch (e) { setMsg(e.message, true); }
-    };
-    document.getElementById('note_draft_publish').onclick = async () => {
-      try {
-        await api('/api/draft_publish/note', { method:'POST', body: JSON.stringify({ref_id:1, note:'草稿当已发布'}) });
-        setMsg('已记旁路');
+        const r = await api('/api/draft_publish/half', { method: 'POST', body: '{}' });
+        setMsg('半修后芯片 ' + r.panel_chip + ' / 真相 ' + r.truth + ' / 命运行 ' + r.pack_count + '（无命运行仍不对齐）');
         await renderSettings(view, setMsg);
       } catch (e) { setMsg(e.message, true); }
     };

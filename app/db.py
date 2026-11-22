@@ -74,6 +74,18 @@ CREATE TABLE IF NOT EXISTS lab_settings (
   label TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS edge_confirm_ledger (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  edge_id INTEGER NOT NULL UNIQUE,
+  edge_code TEXT NOT NULL,
+  fate TEXT NOT NULL CHECK (fate IN ('封草稿','准发布')),
+  fingerprint TEXT NOT NULL,
+  edge_status TEXT NOT NULL,
+  operator TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  confirmed_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL

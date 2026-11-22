@@ -283,6 +283,25 @@ def create_app() -> Bottle:
         body = _read_json()
         return _json(draft_publish_svc.commit_action(body))
 
+    @app.post("/api/edges/<edge_id:int>/confirm")
+    @wrap
+    def api_edges_confirm(edge_id):
+        _require_user()
+        body = _read_json()
+        item = draft_publish_svc.confirm_edge(
+            edge_id,
+            fate=str(body.get("fate") or draft_publish_svc.FATE_SEAL),
+            operator=_require_user(),
+            note=str(body.get("note") or ""),
+        )
+        return _json({"item": item})
+
+    @app.get("/api/draft_publish/gate")
+    @wrap
+    def api_draft_publish_gate():
+        _require_user()
+        return _json(draft_publish_svc.gate_status())
+
     @app.post("/api/draft_publish/half")
     @wrap
     def api_draft_publish_half():
@@ -302,7 +321,7 @@ def create_app() -> Bottle:
         body = _read_json()
         return _json(
             draft_publish_ledger_svc.append_ledger(
-                int(body.get("ref_id") or 0),
+                int(body.get("ref_id") or body.get("edge_id") or 0),
                 str(body.get("note") or "草稿确认"),
             )
         )

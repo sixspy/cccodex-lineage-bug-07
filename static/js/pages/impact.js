@@ -11,11 +11,13 @@ export async function renderImpact(view, setMsg) {
         <label>根节点<select id="root">${opts}</select></label>
         <button class="primary" id="go" type="button">启动影响分析</button>
       </div>
+      <p class="muted">仅已发布边进入可达集合；草稿边被指纹闸拦住时启动会失败并给出中文原因。</p>
     </section>
     <section class="wall" style="margin-top:1rem">
       ${(jobs.items || []).map((j) => `<article class="card">
         <h3>${j.job_code}</h3>
-        <span class="tag">${j.status}</span> <span class="tag">草稿已确认</span>
+        <span class="tag">${j.status}</span>
+        <span class="tag tag-draft" data-thick="unpublished">未发布 ${j.unpublished_count ?? 0} 条·不进可达集合</span>
         <p>根 ${j.node_code} · 命中 ${j.affected_count}</p>
         <p class="muted">${j.message}</p>
         <button data-d="${j.id}" type="button">详情</button>
@@ -28,7 +30,7 @@ export async function renderImpact(view, setMsg) {
         method: 'POST',
         body: JSON.stringify({ root_node_id: Number(document.getElementById('root').value) }),
       });
-      setMsg('影响作业 ' + r.job.job_code + ' · ' + r.job.status);
+      setMsg('影响作业 ' + r.job.job_code + ' · ' + r.job.status + ' · 未发布 ' + (r.job.unpublished_count ?? 0));
       await renderImpact(view, setMsg);
     } catch (e) { setMsg(e.message, true); }
   };

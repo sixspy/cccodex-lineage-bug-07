@@ -2,6 +2,11 @@
 from __future__ import annotations
 
 from app.db import get_db
+from app.services.draft_publish import (
+    gate_status,
+    require_pack_or_raise,
+    unpublished_count,
+)
 from app.services.errors import ServiceError
 
 
@@ -11,7 +16,12 @@ def list_jobs(db_path: str | None = None) -> list[dict]:
             "SELECT j.*, n.node_code, n.table_name FROM impact_jobs j "
             "JOIN lineage_nodes n ON n.id=j.root_node_id ORDER BY j.id DESC"
         ).fetchall()
-        return [dict(r) for r in rows]
+        items = [dict(r) for r in rows]
+        drafts = unpublished_count(db_path)
+        for it in items:
+            # 未发布计数：这些边不进可达集合，台面亮明
+            it["unpublished_count"] = drafts
+        return items
 
 
 def job_detail(job_id: int, db_path: str | None = None) -> dict:
@@ -28,10 +38,15 @@ def job_detail(job_id: int, db_path: str | None = None) -> dict:
             "JOIN lineage_nodes n ON n.id=h.node_id WHERE h.job_id=? ORDER BY h.hop, h.id",
             (job_id,),
         ).fetchall()
-        return {"job": dict(job), "hits": [dict(x) for x in hits]}
+        detail = {"job": dict(job), "hits": [dict(x) for x in hits]}
+        detail["job"]["unpublished_count"] = unpublished_count(db_path)
+        detail["gate"] = gate_status(db_path)
+        return detail
 
 
 def start_impact(root_node_id: int, db_path: str | None = None) -> dict:
+    # 解析入库前闸口：草稿指纹与发布态不合时拦住，不继续展开/入库
+    require_pack_or_raise(db_path)
     with get_db(db_path) as conn:
         root = conn.execute(
             "SELECT * FROM lineage_nodes WHERE id=?", (root_node_id,)
@@ -54,7 +69,7 @@ def start_impact(root_node_id: int, db_path: str | None = None) -> dict:
             (job_code, root_node_id),
         )
         job_id = cur.lastrowid
-        # BFS downstream via published edges
+        # BFS downstream：只沿已发布边，封草稿/未确认草稿一律不进可达集合
         seen = {root_node_id: 0}
         queue = [root_node_id]
         while queue:
@@ -75,13 +90,22 @@ def start_impact(root_node_id: int, db_path: str | None = None) -> dict:
                     seen[kid_id] = hop + 1
                     queue.append(kid_id)
         affected = len(seen)
+        drafts = conn.execute(
+            "SELECT COUNT(*) AS c FROM lineage_edges WHERE status='草稿'"
+        ).fetchone()["c"]
         conn.execute(
             "UPDATE impact_jobs SET status='成功', affected_count=?, message=?, "
             "finished_at=datetime('now') WHERE id=?",
-            (affected, f"影响到 {affected} 个节点", job_id),
+            (
+                affected,
+                f"影响到 {affected} 个节点；未发布边 {int(drafts)} 条不进可达集合",
+                job_id,
+            ),
         )
-        return dict(
+        item = dict(
             conn.execute(
                 "SELECT * FROM impact_jobs WHERE id=?", (job_id,)
             ).fetchone()
         )
+        item["unpublished_count"] = int(drafts)
+        return item

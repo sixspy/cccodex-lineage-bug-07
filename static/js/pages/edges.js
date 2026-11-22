@@ -19,11 +19,16 @@ export async function renderEdges(view, setMsg) {
       ${(edges.items || []).map((e) => `<article class="card">
         <h3>${e.edge_code}</h3>
         <span class="tag">${e.status}</span>
+        ${e.draft_source ? '<span class="tag tag-draft" data-thick="draft_source">草稿来源</span>' : ''}
+        ${e.confirmed ? `<span class="tag tag-fate" data-thick="fate">${e.fate_label}</span>` : ''}
         <p>${e.upstream_code} → ${e.downstream_code}</p>
         <p class="muted">${e.transform_kind} · ${e.upstream_table} → ${e.downstream_table}</p>
         <div class="row">
-          <button data-pub="${e.id}" class="primary" type="button">发布</button>
-          <button data-void="${e.id}" type="button">作废</button>
+          <button data-pub="${e.id}" class="primary" type="button" ${e.status !== '草稿' ? 'disabled' : ''}>发布</button>
+          <button data-void="${e.id}" type="button" ${e.status === '已作废' ? 'disabled' : ''}>作废</button>
+          ${e.status === '草稿' && !e.confirmed ? `
+          <button data-seal="${e.id}" type="button">确认封草稿</button>
+          <button data-allow="${e.id}" class="primary" type="button">确认准发布</button>` : ''}
         </div>
       </article>`).join('') || '<p class="muted">暂无边</p>'}
     </section>`;
@@ -38,7 +43,7 @@ export async function renderEdges(view, setMsg) {
           transform_kind: document.getElementById('kind').value,
         }),
       });
-      setMsg('边已创建');
+      setMsg('边已创建（草稿来源，未确认前不进可达集合）');
       await renderEdges(view, setMsg);
     } catch (e) { setMsg(e.message, true); }
   };
@@ -59,5 +64,21 @@ export async function renderEdges(view, setMsg) {
         await renderEdges(view, setMsg);
       } catch (e) { setMsg(e.message, true); }
     };
+  });
+  const confirm = async (id, fate, label) => {
+    try {
+      const r = await api('/api/edges/' + id + '/confirm', {
+        method: 'POST',
+        body: JSON.stringify({ fate, note: label }),
+      });
+      setMsg('确认整笔完成：' + r.item.edge_code + ' → ' + r.item.fate);
+      await renderEdges(view, setMsg);
+    } catch (e) { setMsg(e.message, true); }
+  };
+  view.querySelectorAll('[data-seal]').forEach((btn) => {
+    btn.onclick = () => confirm(btn.dataset.seal, '封草稿', '确认封草稿');
+  });
+  view.querySelectorAll('[data-allow]').forEach((btn) => {
+    btn.onclick = () => confirm(btn.dataset.allow, '准发布', '确认准发布');
   });
 }

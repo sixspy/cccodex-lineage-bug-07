@@ -6,6 +6,12 @@ from app.services.errors import ServiceError
 
 
 def list_nodes(layer: str | None = None, db_path: str | None = None) -> list[dict]:
+    # 防御：调用方误把库路径位置传到 layer 时，归位而不是按层级过滤出空集
+    if layer is not None and (
+        layer.endswith(".db") or "/" in layer or "\\" in layer
+    ):
+        db_path, layer = layer, None
+    # 芯片与未发布计数在同一连接内一次算好，禁止在连接上下文里再嵌套开连接争锁
     with get_db(db_path) as conn:
         if layer:
             rows = conn.execute(
@@ -16,6 +22,17 @@ def list_nodes(layer: str | None = None, db_path: str | None = None) -> list[dic
             rows = conn.execute(
                 "SELECT * FROM lineage_nodes ORDER BY id"
             ).fetchall()
+        ledger_total = int(
+            conn.execute(
+                "SELECT COUNT(*) AS c FROM edge_confirm_ledger"
+            ).fetchone()["c"]
+        )
+        map_chip = "草稿已确认" if ledger_total > 0 else "草稿仍进"
+        unpublished = int(
+            conn.execute(
+                "SELECT COUNT(*) AS c FROM lineage_edges WHERE status='草稿'"
+            ).fetchone()["c"]
+        )
         items = [dict(r) for r in rows]
         for it in items:
             up = conn.execute(
@@ -30,8 +47,8 @@ def list_nodes(layer: str | None = None, db_path: str | None = None) -> list[dic
             ).fetchone()["c"]
             it["upstream_count"] = int(up)
             it["downstream_count"] = int(down)
-            from app.services.draft_publish import panel_chip
-            it["map_chip"] = panel_chip(db_path)
+            it["map_chip"] = map_chip
+            it["unpublished_count"] = unpublished
             it["map_fields"] = 0
         return items
 

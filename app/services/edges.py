@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from app.db import get_db
+from app.services.draft_publish import FATE_PUBLISH, FATE_SEAL
 from app.services.errors import ServiceError
 
 
@@ -9,13 +10,26 @@ def list_edges(db_path: str | None = None) -> list[dict]:
     with get_db(db_path) as conn:
         rows = conn.execute(
             "SELECT e.*, u.node_code AS upstream_code, u.table_name AS upstream_table, "
-            "d.node_code AS downstream_code, d.table_name AS downstream_table "
+            "d.node_code AS downstream_code, d.table_name AS downstream_table, "
+            "l.fate AS confirm_fate, l.fingerprint AS confirm_fingerprint "
             "FROM lineage_edges e "
             "JOIN lineage_nodes u ON u.id=e.upstream_id "
             "JOIN lineage_nodes d ON d.id=e.downstream_id "
+            "LEFT JOIN edge_confirm_ledger l ON l.edge_id=e.id "
             "ORDER BY e.id"
         ).fetchall()
-        return [dict(r) for r in rows]
+        items = [dict(r) for r in rows]
+        for it in items:
+            # 草稿来源：凡仍是草稿态（含已封草稿）都亮明，不允许冒充已发布
+            it["draft_source"] = it["status"] == "草稿"
+            it["confirmed"] = it["confirm_fate"] is not None
+            if it["confirm_fate"] == FATE_SEAL:
+                it["fate_label"] = "已封草稿·不进可达集合"
+            elif it["confirm_fate"] == FATE_PUBLISH:
+                it["fate_label"] = "准发布·已兑现"
+            else:
+                it["fate_label"] = "未确认"
+        return items
 
 
 def create_edge(
@@ -72,6 +86,11 @@ def publish_edge(edge_id: int, db_path: str | None = None) -> dict:
             raise ServiceError("边不存在", 404)
         if edge["status"] != "草稿":
             raise ServiceError("仅草稿可发布", 409)
+        sealed = conn.execute(
+            "SELECT fate FROM edge_confirm_ledger WHERE edge_id=?", (edge_id,)
+        ).fetchone()
+        if sealed and sealed["fate"] == FATE_SEAL:
+            raise ServiceError("该边已按命运封草稿，禁止改道发布形成双轨", 409)
         for nid in (edge["upstream_id"], edge["downstream_id"]):
             node = conn.execute(
                 "SELECT status FROM lineage_nodes WHERE id=?", (nid,)
